@@ -1,0 +1,116 @@
+<html>
+<head>
+<title>Diffsync Test</title>
+<style type="text/css">
+</style>
+</head>
+<body>
+<pre>
+Hey there, why dont you open your console?
+
+Available functions:
+
+ >---------------------------------------------------------------------------+
+    sendSessionCreate(token)                                                 |
+        will initiate a session with given token.                            |
+        the received sessiondata will be saved in window.session             |
+        valid tokens: userlogin, anon                                        |
+ >---------------------------------------------------------------------------+
+
+ >---------------------------------------------------------------------------+
+    sendSync(kind, id, changes)                                              |
+        initiate a sync request for the resource specified by kind and id    |
+        changes is an array containing the clients send-queue                |
+ >---------------------------------------------------------------------------+
+
+Notes in server-store:
+   +--------------------------------------------+
+   |  kind  |   id   |     initial content      |
+   ,............................................,
+   |  note  |  aaaaa |            "a b c d e f" |
+   |  note  |  bbbbb |            "-=-=-=-=-=-" |
+   |  note  |  ccccc |                   "Test" |
+   +--------------------------------------------+
+    
+Check `window.changes` in console to see some pre-defined edit-queues
+
+Example flow: simultate 2 seperate sessions using the same token and modify 
+              the same doc simultaneously. 
+          
+              (tab1) open http://localhost:8888/client
+              (tab2) open http://localhost:8888/client
+              (tab1 console) sendSessionCreate("userlogin")
+              (tab2 console) sendSessionCreate("userlogin")
+              (tab1 console) sendSync("note", "ccccc", window.changes[3])
+              (tab2 console) sendSync("note", "ccccc", window.changes[2])
+            now we open another tab and simply create a third session using 
+            the same token. when you inspect the retourned session-state, 
+            all the edits to "ccccc" should be visible.
+              (tab3) open http://localhost:8888/client
+              (tab3 console) sendSessionCreate("userlogin")
+              (tab3 console) window.session.notes["ccccc"].val
+
+
+
+  
+</pre>
+</body>
+<script>
+    var conn;
+    function sendSync(kind, id, changes) {
+        var req = {
+            "name": "res-sync",
+            "sid": window.session.sid,
+            "tag": "client01",
+            "res": {
+                "kind": kind,
+                "id": id
+            },
+            "changes": changes
+        }
+        conn.send(JSON.stringify(req))
+        console.group("session-sync sid:'"+window.session.sid+"' tag:'client01'");
+        req = undefined
+
+    }
+    function sendSessionCreate(token) {
+        var req = {
+            "name": "session-create",
+            "sid": "",
+            "tag": "client01",
+            "token": token
+        }
+        conn.send(JSON.stringify(req))
+        console.group("session-create token:'"+token+"' tag:'client01'");
+        req = undefined
+    }
+
+    window.changes = [[{"clock": {"cv": 0, "sv": 0}, "delta": "-3\t=8"}],
+                      [{"clock": {"cv": 1, "sv": 1}, "delta": "-1\t=7"}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": "=2\t+Bar\t=2"}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": "-2\t+RA\t=2"}]
+                    ];
+
+    if (window["WebSocket"]) {
+        conn = new WebSocket("ws://localhost:8888/0/ws");
+        conn.onopen = function(evt) {
+            console.group("ws-connection opened");
+            sendSessionCreate("userlogin");
+        }
+        conn.onclose = function(evt) {
+            console.info("websocket connection closed.");
+        }
+        conn.onmessage = function(evt) {
+            console.log("received:", evt.data);
+            var ev = JSON.parse(evt.data);
+            if (ev.name == "session-create") {
+                window.session = ev.session;
+                console.log("mounted session at window.session")
+            }
+            console.groupEnd();
+        }
+    } else {
+        console.error("Your browser does not support WebSockets");
+    }
+</script>
+</html>

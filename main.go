@@ -1,11 +1,78 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	ds "github.com/hiro/diffsync"
 	"log"
+
+	"html/template"
+	"net/http"
+
+	"github.com/gorilla/websocket"
+	ds "github.com/hiro/diffsync"
 )
+
+var (
+	_             = fmt.Print
+	sessionHub    *ds.SessionHub
+	tokenConsumer *ds.HiroTokens
+)
+
+func testHandler(c http.ResponseWriter, req *http.Request) {
+	clientTempl := template.Must(template.ParseFiles("./html/client.html"))
+	clientTempl.Execute(c, nil)
+}
+
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	log.Println("handling ws request")
+	// TODO: check origin and other WS best-practices
+	ws, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+	if _, ok := err.(websocket.HandshakeError); ok {
+		http.Error(w, "websocket handshake failed", 400)
+		return
+	} else if err != nil {
+		return
+	}
+	defer ws.Close()
+	log.Println("ping")
+	conn := ds.NewConn(sessionHub.Inbox(), tokenConsumer)
+	defer conn.Close()
+
+	from_client := make(chan ds.Event)
+	go func(ch chan ds.Event) {
+		defer close(ch)
+		var buf ds.Event
+		for {
+			buf = ds.NewEvent()
+			if err := ws.ReadJSON(&buf); err != nil {
+				log.Println("error reading from websocket connection", err)
+				return
+			}
+			ch <- buf
+		}
+	}(from_client)
+	for {
+		select {
+		case event, ok := <-from_client:
+			if !ok {
+				// ws read failed, shutting down connection
+				return
+			}
+			log.Println("ws: received ", event)
+			conn.ClientEvent(event)
+		case event, ok := <-conn.ToClient():
+			if !ok {
+				log.Println("error receiving from client, shutting down", err)
+				//shut. down. everything.
+				return
+			}
+			if err := ws.WriteJSON(event); err != nil {
+				log.Println("error writing to websocket connection:", err)
+				//shut. down. everything.
+				return
+			}
+		}
+	}
+}
 
 var tmpStore = map[string]*ds.NoteValue{
 	"aaaaa": ds.NewNoteValue("a b c d e f"),
@@ -44,76 +111,14 @@ func main() {
 		"note": ds.NewStore(note_backend),
 	}
 	sess_backend := ds.NewHiroMemSessions(stores)
+	tokenConsumer = ds.NewHiroTokens(sess_backend, stores)
+	tokenConsumer.Tokens = tmpTokens
+	sessionHub = ds.NewSessionHub(sess_backend, stores)
+	go sessionHub.Run()
 
-	token_consumer := ds.NewHiroTokens(sess_backend, stores)
-    token_consumer.Tokens = tmpTokens
-	sess_hub := ds.NewSessionHub(sess_backend, stores)
-	go sess_hub.Run()
+	http.HandleFunc("/client", testHandler)
+	http.HandleFunc("/0/ws", wsHandler)
 
-	// this would come from the client and reuse the same buffer again and again
-	ev := ds.NewEvent("session-create", "", map[string]string{"token": "userlogin"}, nil)
-	sid, err := getSessionId(ev, token_consumer)
-	if err != nil {
-		fmt.Println(err)
-	}
-	log.Println("SSIIDD", sid)
-	client := make(chan ds.Event)
-	newevent := ds.NewEvent("session-create", sid, nil, client)
-	sess_hub.Inbox() <- newevent
-
-	fmt.Println("waiting on client response...")
-	resp := <-client
-	fmt.Printf("response received: %v %v\n", resp, resp.Data())
-	data, ok := resp.Data().(ds.SessionData)
-	if !ok {
-		panic("WHUT")
-	}
-	log.Printf("\n\n%v", data)
-	foo, err := json.MarshalIndent(data, "", "  ")
-	if err != nil {
-		log.Println("CANNOT MARSHAL SessionData:", err)
-	}
-	_ = foo
-	fmt.Println(string(foo))
-	x := ds.NewNoteValue("FOOOO")
-	fmt.Println("here we go", x.String())
-
-	changes := []ds.Edit{ds.NewEdit(ds.NoteDelta("-3\t=8"))}
-
-	// try sending a sync request
-	newevent = ds.NewEvent("res-sync", sid, ds.NewSyncData("note", "aaaaa", changes), client)
-	sess_hub.Inbox() <- newevent
-
-	fmt.Println("waiting on client response...")
-	resp = <-client
-	fmt.Printf("response received: %#v \n", resp)
-
-	data2, ok := resp.Data().(ds.SyncData)
-	if !ok {
-		log.Println("wrong type for payload")
-	} else {
-		log.Println("whoops nothing to see here")
-	}
-	log.Printf(">>>> %#v", data2)
-	foo, err = json.MarshalIndent(data2, "", "  ")
-	if err != nil {
-		log.Println("CANNOT MARSHAL SyncData:", err)
-	}
-	log.Println(string(foo))
-
-	log.Println("notestoe-dump!")
-	log.Println(note_backend.DumpAll())
-
-	return
-}
-
-func getSessionId(event ds.Event, consumer ds.TokenConsumer) (sid string, err error) {
-	if event.Name() == "session-create" {
-		log.Println("received session-create, parsing tokens", event)
-		data := event.Data().(map[string]string)
-		sid, err = consumer.Consume(data["token"], event.SID())
-		log.Printf("consumed token `%s` and received sessionid `%s`", data["token"], sid)
-		return
-	}
-	return event.SID(), nil
+	log.Println("starting up http/WebSocket module")
+	log.Fatal(http.ListenAndServe("localhost:8888", nil))
 }
