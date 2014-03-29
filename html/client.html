@@ -10,21 +10,41 @@ Hey there, why dont you open your console?
 
 Available functions:
 
- >---------------------------------------------------------------------------+
-    sendSessionCreate(token)                                                 |
-        will initiate a session with given token.                            |
-        the received sessiondata will be saved in window.session             |
-        valid tokens: userlogin, anon                                        |
+ >---------------------------------------------------------------------------+              Example flow: simultate 2 seperate sessions using the same token and modify
+    sendSessionCreate(token)                                                 |                            the same doc simultaneously. 
+        will initiate a new session with given token.                        |                        
+        the received sessiondata will be saved in window.session             |                            (tab1) open http://localhost:8888/client
+        valid tokens: userlogin, anon                                        |                            (tab2) open http://localhost:8888/client
+ >---------------------------------------------------------------------------+                            (tab1 console) sendSessionCreate("userlogin")
+                                                                                                          (tab2 console) sendSessionCreate("userlogin")
+ >---------------------------------------------------------------------------+                            (tab1 console) sendSync("note", "ccccc", window.changes[3])
+    sendSync(kind, id, changes)                                              |                            (tab2 console) sendSync("note", "ccccc", window.changes[2])
+        initiate a sync request for the resource specified by kind and id    |                          now we open another tab and simply create a third session using
+        changes is an array containing the clients send-queue                |                          the same token. when you inspect the retourned session-state, 
+ >---------------------------------------------------------------------------+                          all the edits to "ccccc" should be visible.
+                                                                                                          (tab3) open http://localhost:8888/client
+ >---------------------------------------------------------------------------+                            (tab3 console) sendSessionCreate("userlogin")
+    disconnect()                                                             |                            (tab3 console) window.session.notes["ccccc"].val
+        disconnect the current websocket connection. keep session-state      |
+        in window.session untouched.                                         |
  >---------------------------------------------------------------------------+
 
  >---------------------------------------------------------------------------+
-    sendSync(kind, id, changes)                                              |
-        initiate a sync request for the resource specified by kind and id    |
-        changes is an array containing the clients send-queue                |
+    ehlo()                                                                   |
+        send "client-ehlo" with an existing session (from window.session)    |
  >---------------------------------------------------------------------------+
 
-Notes in server-store:
-   +--------------------------------------------+
+ >---------------------------------------------------------------------------+
+    connect()                                                           |
+        establish a new websocket connection. after the connection is open,  |
+        either an existing session-id (window.session) is re-used (i.e,      |
+        call ehlo()) or create a new session with the token "userlogin"      |
+        (i.e. call sendSessionCreate("userlogin"))                           |
+ >---------------------------------------------------------------------------+
+
+
+Notes in server-store:                                                                                    
+   +--------------------------------------------+                                                         
    |  kind  |   id   |     initial content      |
    ,............................................,
    |  note  |  aaaaa |            "a b c d e f" |
@@ -34,21 +54,6 @@ Notes in server-store:
     
 Check `window.changes` in console to see some pre-defined edit-queues
 
-Example flow: simultate 2 seperate sessions using the same token and modify 
-              the same doc simultaneously. 
-          
-              (tab1) open http://localhost:8888/client
-              (tab2) open http://localhost:8888/client
-              (tab1 console) sendSessionCreate("userlogin")
-              (tab2 console) sendSessionCreate("userlogin")
-              (tab1 console) sendSync("note", "ccccc", window.changes[3])
-              (tab2 console) sendSync("note", "ccccc", window.changes[2])
-            now we open another tab and simply create a third session using 
-            the same token. when you inspect the retourned session-state, 
-            all the edits to "ccccc" should be visible.
-              (tab3) open http://localhost:8888/client
-              (tab3 console) sendSessionCreate("userlogin")
-              (tab3 console) window.session.notes["ccccc"].val
 
 
 
@@ -57,6 +62,9 @@ Example flow: simultate 2 seperate sessions using the same token and modify
 </body>
 <script>
     var conn;
+    function disconnect() {
+        conn.close();
+    }
     function sendSync(kind, id, changes) {
         var req = {
             "name": "res-sync",
@@ -85,32 +93,59 @@ Example flow: simultate 2 seperate sessions using the same token and modify
         req = undefined
     }
 
+    function ehlo() {
+        if (window.session === undefined) {
+            console.log("cannot ehlo without session. run sendSessionCreate(token) first");
+            return
+        }
+        var req = {
+            "name": "client-ehlo",
+            "sid": window.session.sid,
+            "tag": "client01",
+        }
+        conn.send(JSON.stringify(req))
+        console.group("client-ehlo sid:'"+window.session.sid+"' tag:'client01'");
+        req = undefined
+    }
+
     window.changes = [[{"clock": {"cv": 0, "sv": 0}, "delta": "-3\t=8"}],
                       [{"clock": {"cv": 1, "sv": 1}, "delta": "-1\t=7"}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": "=2\t+Bar\t=2"}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": "-2\t+RA\t=2"}]
                     ];
 
-    if (window["WebSocket"]) {
-        conn = new WebSocket("ws://localhost:8888/0/ws");
-        conn.onopen = function(evt) {
-            console.group("ws-connection opened");
-            sendSessionCreate("userlogin");
+    function connect() {
+        if (window.session === undefined) {
+            wsConnect(function() { sendSessionCreate("userlogin")});
+        } else {
+            wsConnect(ehlo);
         }
-        conn.onclose = function(evt) {
-            console.info("websocket connection closed.");
-        }
-        conn.onmessage = function(evt) {
-            console.log("received:", evt.data);
-            var ev = JSON.parse(evt.data);
-            if (ev.name == "session-create") {
-                window.session = ev.session;
-                console.log("mounted session at window.session")
-            }
-            console.groupEnd();
-        }
-    } else {
-        console.error("Your browser does not support WebSockets");
     }
+
+    function wsConnect(onopen) {
+        if (window["WebSocket"]) {
+            conn = new WebSocket("ws://localhost:8888/0/ws");
+            conn.onopen = function(evt) {
+                console.group("ws-connection opened");
+                if (onopen) onopen();
+            }
+            conn.onclose = function(evt) {
+                console.groupEnd();
+                console.info("websocket connection closed.");
+            }
+            conn.onmessage = function(evt) {
+                console.log("received:", evt.data);
+                var ev = JSON.parse(evt.data);
+                if (ev.name == "session-create") {
+                    window.session = ev.session;
+                    console.log("mounted session at window.session")
+                }
+                console.groupEnd();
+            }
+        } else {
+            console.error("Your browser does not support WebSockets");
+        }
+    }
+    connect();
 </script>
 </html>

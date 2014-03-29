@@ -106,15 +106,17 @@ var tmpTokens = map[string]ds.Token{
 }
 
 func main() {
+	notify := make(ds.NotifyListener, 250)
 	note_backend := ds.NewNoteMemBackend(tmpStore)
 	stores := map[string]*ds.Store{
-		"note": ds.NewStore(note_backend),
+		"note": ds.NewStore(note_backend, notify),
 	}
 	sess_backend := ds.NewHiroMemSessions(stores)
 	tokenConsumer = ds.NewHiroTokens(sess_backend, stores)
 	tokenConsumer.Tokens = tmpTokens
 	sessionHub = ds.NewSessionHub(sess_backend, stores)
 	go sessionHub.Run()
+	go notify.Run(sess_backend, sessionHub.Inbox())
 
 	http.HandleFunc("/client", testHandler)
 	http.HandleFunc("/0/ws", wsHandler)
