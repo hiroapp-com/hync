@@ -74,7 +74,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var tmpStore = map[string]*ds.NoteValue{
+var tmpNotes = map[string]*ds.NoteValue{
 	"aaaaa": ds.NewNoteValue("a b c d e f"),
 	"bbbbb": ds.NewNoteValue("-=-=-=-=-=-"),
 	"ccccc": ds.NewNoteValue("Test"),
@@ -91,9 +91,9 @@ var tmpTokens = map[string]ds.Token{
 	},
 	"userlogin": {
 		Key:    "userlogin",
-		UserID: "testUser",
+		UserID: "sk80Ms",
 		Resources: []ds.Resource{
-			//ds.NewResource("folio", "sk80Ms"),
+			ds.NewResource("folio", "sk80Ms"),
 			//ds.NewResource("contacts", "sk80Ms"),
 			ds.NewResource("note", "aaaaa"),
 			ds.NewResource("note", "bbbbb"),
@@ -104,12 +104,29 @@ var tmpTokens = map[string]ds.Token{
 		},
 	},
 }
+var tmpFolio = map[string]ds.ResourceValue{
+	"sk80Ms": &ds.Folio{
+		User: ds.UserInfo{
+			UID:   "sk80Ms",
+			Email: "marvin@hiroapp.com",
+			Name:  "Marvin",
+		},
+		Settings: ds.Settings{
+			Plan: "free",
+		},
+		Docs:    []string{"aaaaa", "bbbbb", "ccccc"},
+		Archive: []string{"ccccc"},
+	},
+}
 
 func main() {
 	notify := make(ds.NotifyListener, 250)
-	note_backend := ds.NewNoteMemBackend(tmpStore)
+	note_backend := ds.NewNoteMemBackend(tmpNotes)
+	folioBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.NewFolio() })
+	folioBackend.Dict = tmpFolio
 	stores := map[string]*ds.Store{
-		"note": ds.NewStore(note_backend, notify),
+		"note":  ds.NewStore("note", note_backend, notify),
+		"folio": ds.NewStore("folio", folioBackend, notify),
 	}
 	sess_backend := ds.NewHiroMemSessions(stores)
 	tokenConsumer = ds.NewHiroTokens(sess_backend, stores)
