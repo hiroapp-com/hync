@@ -110,11 +110,10 @@ Check `window.changes` in console to see some pre-defined edit-queues
 
     window.changes = [[{"clock": {"cv": 0, "sv": 0}, "delta": "-3\t=8"}],
                       [{"clock": {"cv": 1, "sv": 1}, "delta": "-1\t=7"}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": "=2\t+Bar\t=2"}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": "-2\t+RA\t=2"}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"props": {"user.name": "Your Momma"}}}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"props": {"user.name": "Your Poppa"}}}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"docs": ["+ddddd"], "archive": ["-ccccc", "+aaaaa"]}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "=2\t+Bar\t=2"}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "-2\t+RA\t=2", "title": ["", "FOOOO"]}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"add": [{"nid": "new:2", "status": "active"}], "mod": [["ccccc", "status", "archive", "active"]]}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"add": [{"nid": "new:1", "status": "active"}, {"nid": "new:2", "status": "archive"}, {"nid": "new:3", "status": "ahaha"}], "mod": [["ccccc", "status", "archive", "active"]], "rem": [{"nid": "bbbbb"}]}}],
                     ];
 
     function connect() {

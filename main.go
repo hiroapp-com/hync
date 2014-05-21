@@ -34,20 +34,25 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 	log.Println("ping")
-	conn := ds.NewConn(sessionHub.Inbox(), tokenConsumer)
+	conn := ds.NewConn(sessionHub.Inbox(), tokenConsumer, ds.NewJsonAdapter())
 	defer conn.Close()
 
 	from_client := make(chan ds.Event)
+	// handle goroutine for message from client
 	go func(ch chan ds.Event) {
 		defer close(ch)
-		var buf ds.Event
 		for {
-			buf = ds.NewEvent()
-			if err := ws.ReadJSON(&buf); err != nil {
+			_, msg, err := ws.ReadMessage()
+			if err != nil {
 				log.Println("error reading from websocket connection", err)
 				return
 			}
-			ch <- buf
+			event, err := conn.MsgToEvent(msg)
+			if err != nil {
+				log.Println("invalid Message received", err)
+				return
+			}
+			ch <- event
 		}
 	}(from_client)
 	for {
@@ -65,7 +70,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				//shut. down. everything.
 				return
 			}
-			if err := ws.WriteJSON(event); err != nil {
+			msg, err := conn.EventToMsg(event)
+			if err != nil {
+				log.Println("received invalid event from system", err)
+				//shut. down. everything.
+				return
+			}
+			if err = ws.WriteMessage(websocket.TextMessage, msg); err != nil {
 				log.Println("error writing to websocket connection:", err)
 				//shut. down. everything.
 				return
@@ -74,10 +85,10 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var tmpNotes = map[string]*ds.NoteValue{
-	"aaaaa": ds.NewNoteValue("a b c d e f"),
-	"bbbbb": ds.NewNoteValue("-=-=-=-=-=-"),
-	"ccccc": ds.NewNoteValue("Test"),
+var tmpNotes = map[string]ds.Note{
+	"aaaaa": ds.NewNote("a b c d e f"),
+	"bbbbb": ds.NewNote("-=-=-=-=-=-"),
+	"ccccc": ds.NewNote("Test"),
 }
 
 var tmpTokens = map[string]ds.Token{
@@ -104,25 +115,28 @@ var tmpTokens = map[string]ds.Token{
 		},
 	},
 }
+
+//User: ds.UserInfo{
+//	UID:   "sk80Ms",
+//	Email: "marvin@hiroapp.com",
+//	Name:  "Marvin",
+//},
+//Settings: ds.Settings{
+//	Plan: "free",
+//},
+
 var tmpFolio = map[string]ds.ResourceValue{
-	"sk80Ms": &ds.Folio{
-		User: ds.UserInfo{
-			UID:   "sk80Ms",
-			Email: "marvin@hiroapp.com",
-			Name:  "Marvin",
-		},
-		Settings: ds.Settings{
-			Plan: "free",
-		},
-		Docs:    []string{"aaaaa", "bbbbb", "ccccc"},
-		Archive: []string{"ccccc"},
+	"sk80Ms": ds.Folio{
+		ds.NoteRef{NID: "aaaaa", Status: "active"},
+		ds.NoteRef{NID: "bbbbb", Status: "active"},
+		ds.NoteRef{NID: "ccccc", Status: "archive"},
 	},
 }
 
 func main() {
 	notify := make(ds.NotifyListener, 250)
 	note_backend := ds.NewNoteMemBackend(tmpNotes)
-	folioBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.NewFolio() })
+	folioBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.Folio{} })
 	folioBackend.Dict = tmpFolio
 	stores := map[string]*ds.Store{
 		"note":  ds.NewStore("note", note_backend, notify),
