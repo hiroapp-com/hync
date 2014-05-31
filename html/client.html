@@ -65,6 +65,13 @@ Check `window.changes` in console to see some pre-defined edit-queues
     function disconnect() {
         conn.close();
     }
+    function sendNamedSync(name) {
+        var req = window.msgs[name];
+        req["sid"] = window.session.sid;
+        conn.send(JSON.stringify([req]))
+        console.group("session-sync sid:'"+window.session.sid+"' tag:'client01'");
+        req = undefined
+    }
     function sendSync(kind, id, changes) {
         var req = {
             "name": "res-sync",
@@ -76,10 +83,9 @@ Check `window.changes` in console to see some pre-defined edit-queues
             },
             "changes": changes
         }
-        conn.send(JSON.stringify(req))
+        conn.send(JSON.stringify([req]))
         console.group("session-sync sid:'"+window.session.sid+"' tag:'client01'");
         req = undefined
-
     }
     function sendSessionCreate(token) {
         var req = {
@@ -88,7 +94,7 @@ Check `window.changes` in console to see some pre-defined edit-queues
             "tag": "client01",
             "token": token
         }
-        conn.send(JSON.stringify(req))
+        conn.send(JSON.stringify([req]))
         console.group("session-create token:'"+token+"' tag:'client01'");
         req = undefined
     }
@@ -103,7 +109,7 @@ Check `window.changes` in console to see some pre-defined edit-queues
             "sid": window.session.sid,
             "tag": "client01",
         }
-        conn.send(JSON.stringify(req))
+        conn.send(JSON.stringify([req]))
         console.group("client-ehlo sid:'"+window.session.sid+"' tag:'client01'");
         req = undefined
     }
@@ -111,10 +117,16 @@ Check `window.changes` in console to see some pre-defined edit-queues
     window.changes = [[{"clock": {"cv": 0, "sv": 0}, "delta": "-3\t=8"}],
                       [{"clock": {"cv": 1, "sv": 1}, "delta": "-1\t=7"}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "=2\t+Bar\t=2"}}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "-2\t+RA\t=2", "title": ["", "FOOOO"]}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "-2\t+RA\t=2", "title": "FOOOO"}}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": {"add": [{"nid": "new:2", "status": "active"}], "mod": [["ccccc", "status", "archive", "active"]]}}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": {"add": [{"nid": "new:1", "status": "active"}, {"nid": "new:2", "status": "archive"}, {"nid": "new:3", "status": "ahaha"}], "mod": [["ccccc", "status", "archive", "active"]], "rem": [{"nid": "bbbbb"}]}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "", "title": null, "peers": [{"op": "invite", "path": "", "value": {"email": "bruno.haid@gmail.com"}}]}}],
+                      [{"clock": {"cv": 1, "sv": 1}, "delta": {"text": "", "title": null, "peers": [{"op": "set-cursor", "path": "user/email:bruno.haid@gmail.com", "value": 23}]}}]
                     ];
+
+    window.msgs = {
+        "text-sync": {"name":"res-sync","res":{"kind":"note","id":"aaaaa"},"changes":[{"clock":{"sv":0,"cv":0},"delta":{"text":"=11\t+f"}}],"sid":"c423b29a406106758074dcc5304bb42e","tag":"0w6juh","state":0,"sent":1401568116004}
+    }
 
     function connect() {
         if (window.session === undefined) {
@@ -137,11 +149,13 @@ Check `window.changes` in console to see some pre-defined edit-queues
             }
             conn.onmessage = function(evt) {
                 console.log("received:", evt.data);
-                var ev = JSON.parse(evt.data);
-                if (ev.name == "session-create") {
-                    window.session = ev.session;
-                    console.log("mounted session at window.session")
-                }
+                var evs = JSON.parse(evt.data);
+                evs.forEach(function(ev) {
+                    if (ev.name == "session-create") {
+                        window.session = ev.session;
+                        console.log("mounted session at window.session")
+                    }
+                        })
                 console.groupEnd();
             }
         } else {
