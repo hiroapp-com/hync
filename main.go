@@ -47,12 +47,19 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println("error reading from websocket connection", err)
 				return
 			}
-			event, err := conn.MsgToEvent(msg)
+			msgs, err := conn.Demux(msg)
 			if err != nil {
-				log.Println("invalid Message received", err)
-				return
+				log.Println("error de-muxing message list from client")
+				continue
 			}
-			ch <- event
+			for i := range msgs {
+				event, err := conn.MsgToEvent(msgs[i])
+				if err != nil {
+					log.Println("invalid Message received", err)
+					return
+				}
+				ch <- event
+			}
 		}
 	}(from_client)
 	for {
@@ -76,7 +83,12 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				//shut. down. everything.
 				return
 			}
-			if err = ws.WriteMessage(websocket.TextMessage, msg); err != nil {
+			muxed, err := conn.Mux([][]byte{msg})
+			if err != nil {
+				log.Println("could not mux outgoing messages into message-list", err)
+				continue
+			}
+			if err = ws.WriteMessage(websocket.TextMessage, muxed); err != nil {
 				log.Println("error writing to websocket connection:", err)
 				//shut. down. everything.
 				return
