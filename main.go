@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"html/template"
 	"net/http"
@@ -97,10 +98,37 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func nao() *time.Time {
+	t := time.Now()
+	return &t
+}
+
 var tmpNotes = map[string]ds.Note{
-	"aaaaa": ds.NewNote("a b c d e f"),
-	"bbbbb": ds.NewNote("-=-=-=-=-=-"),
-	"ccccc": ds.NewNote("Test"),
+	"aaaaa": ds.Note{
+		Text:      ds.TextValue("a b c d e f"),
+		CreatedAt: time.Now(),
+		Peers: []ds.Peer{
+			{User: ds.User{UID: "Flo012"}, CursorPosition: 23, LastSeen: nao(), LastEdit: nao(), Role: "owner"},
+			{User: ds.User{UID: "Bruno0"}, CursorPosition: 42, LastSeen: nao(), LastEdit: nao(), Role: "active"},
+			{User: ds.User{UID: "Sam012"}, CursorPosition: 0, Role: "invited"},
+		},
+	},
+	"bbbbb": ds.Note{
+		Text:      ds.TextValue("-=-=-=-=-=-"),
+		CreatedAt: time.Now(),
+		Peers: []ds.Peer{
+			{User: ds.User{UID: "Bruno0"}, CursorPosition: 42, LastSeen: nao(), LastEdit: nao(), Role: "owner"},
+			{User: ds.User{UID: "Flo012"}, CursorPosition: 23, LastSeen: nao(), LastEdit: nao(), Role: "active"},
+		},
+	},
+	"ccccc": ds.Note{
+		Text:      ds.TextValue("Test"),
+		CreatedAt: time.Now(),
+		Peers: []ds.Peer{
+			{User: ds.User{UID: "Bruno0"}, CursorPosition: 42, LastSeen: nao(), LastEdit: nao(), Role: "owner"},
+			{User: ds.User{UID: "Flo012"}, CursorPosition: 23, LastSeen: nao(), LastEdit: nao(), Role: "active"},
+		},
+	},
 }
 
 var tmpTokens = map[string]ds.Token{
@@ -114,34 +142,51 @@ var tmpTokens = map[string]ds.Token{
 	},
 	"userlogin": {
 		Key:    "userlogin",
-		UserID: "sk80Ms",
+		UserID: "Flo012",
 		Resources: []ds.Resource{
-			ds.NewResource("folio", "sk80Ms"),
-			//ds.NewResource("contacts", "sk80Ms"),
+			ds.NewResource("folio", "Flo012"),
 			ds.NewResource("note", "aaaaa"),
 			ds.NewResource("note", "bbbbb"),
 			ds.NewResource("note", "ccccc"),
-			//ds.NewResource("meta", "aaaaa"),
-			//ds.NewResource("meta", "bbbbb"),
-			//ds.NewResource("meta", "ccccc"),
+		},
+	},
+	"brunologin": {
+		Key:    "brunologin",
+		UserID: "Bruno0",
+		Resources: []ds.Resource{
+			ds.NewResource("folio", "Bruno0"),
+			ds.NewResource("note", "aaaaa"),
+			ds.NewResource("note", "bbbbb"),
+			ds.NewResource("note", "ccccc"),
 		},
 	},
 }
 
-//User: ds.UserInfo{
-//	UID:   "sk80Ms",
-//	Email: "marvin@hiroapp.com",
-//	Name:  "Marvin",
-//},
-//Settings: ds.Settings{
-//	Plan: "free",
-//},
+var tmpProfile = map[string]ds.ResourceValue{
+	"Flo012": ds.Profile{
+		User:     ds.User{UID: "Flo012", Name: "Flo", Email: "flo@qatfy.at"},
+		Contacts: []ds.User{{UID: "Bruno0", Name: "Bruno"}, {UID: "Sam012", Name: "Sam"}},
+	},
+	"Bruno0": ds.Profile{
+		User:     ds.User{UID: "Bruno0", Name: "Bruno", Email: "bruno.haid@gmail.com"},
+		Contacts: []ds.User{{UID: "Flo012", Name: "Flo"}},
+	},
+	"Sam012": ds.Profile{
+		User:     ds.User{UID: "Sam012", Name: "Sam", Email: "samaltman@ycombinator.com", Phone: "(850) 234 3241"},
+		Contacts: []ds.User{{UID: "Flo012", Name: "Flo"}},
+	},
+}
 
 var tmpFolio = map[string]ds.ResourceValue{
-	"sk80Ms": ds.Folio{
+	"Flo012": ds.Folio{
 		ds.NoteRef{NID: "aaaaa", Status: "active"},
 		ds.NoteRef{NID: "bbbbb", Status: "active"},
 		ds.NoteRef{NID: "ccccc", Status: "archive"},
+	},
+	"Bruno0": ds.Folio{
+		ds.NoteRef{NID: "aaaaa", Status: "active"},
+		ds.NoteRef{NID: "bbbbb", Status: "active"},
+		ds.NoteRef{NID: "ccccc", Status: "active"},
 	},
 }
 
@@ -150,9 +195,13 @@ func main() {
 	note_backend := ds.NewNoteMemBackend(tmpNotes)
 	folioBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.Folio{} })
 	folioBackend.Dict = tmpFolio
+
+	profileBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.Profile{} })
+	profileBackend.Dict = tmpProfile
 	stores := map[string]*ds.Store{
-		"note":  ds.NewStore("note", note_backend, notify),
-		"folio": ds.NewStore("folio", folioBackend, notify),
+		"note":    ds.NewStore("note", note_backend, notify),
+		"folio":   ds.NewStore("folio", folioBackend, notify),
+		"profile": ds.NewStore("profile", profileBackend, notify),
 	}
 	sess_backend := ds.NewHiroMemSessions(stores)
 	tokenConsumer = ds.NewHiroTokens(sess_backend, stores)
