@@ -121,14 +121,16 @@ Check `window.changes` in console to see some pre-defined edit-queues
                       [{"clock": {"cv": 0, "sv": 0}, "delta": {"add": [{"nid": "new:2", "status": "active"}], "mod": [["ccccc", "status", "archive", "active"]]}}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": {"add": [{"nid": "new:1", "status": "active"}, {"nid": "new:2", "status": "archive"}, {"nid": "new:3", "status": "ahaha"}], "mod": [["ccccc", "status", "archive", "active"]], "rem": [{"nid": "bbbbb"}]}}],
                       [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "", "title": null, "peers": [{"op": "invite", "path": "", "value": {"email": "bruno.haid@gmail.com"}}]}}],
-                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "", "title": null, "peers": [{"op": "set-cursor", "path": "user/uid:Bruno0", "value": 1337}]}}]
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": {"text": "", "title": null, "peers": [{"op": "set-cursor", "path": "user/uid:Bruno0", "value": 1337}]}}],
+                      [{"clock": {"cv": 0, "sv": 0}, "delta": [{"op": "delta-text", "path": "", "value": "+1234567"}, {"op": "set-title", "path": "", "value": "YEEEHAW"}, {"op": "add-peer", "path": "peers/", "value": {"user": {"uid": "Flo012"}, "cursor_pos": 32, "role": "owner"}}]}]
                     ];
 
     window.msgs = {
         "text-sync": {"name":"res-sync","res":{"kind":"note","id":"aaaaa"},"changes":[{"clock":{"sv":0,"cv":0},"delta":{"text":"=11\t+f"}}],"sid":"c423b29a406106758074dcc5304bb42e","tag":"0w6juh","state":0,"sent":1401568116004},
         "title-sync": {"name":"res-sync","res":{"kind":"note","id":"aaaaa"},"changes":[{"clock":{"sv":0,"cv":0},"delta":{"title":"f"}}],"sid":"bc6c61064091cdba8064b741db47695f","tag":"pwty3a","state":2,"sent":1401593755783},
         "namechange": {"name":"res-sync","res":{"kind":"profile","id":"Flo012"},"changes":[{"clock":{"sv":0,"cv":0},"delta":[{"op":"set-name", "path": "user/uid:Flo012", "value": "BUBU"}]}],"sid":"bc6c61064091cdba8064b741db47695f","tag":"pwty3a"},
-        "addcontact": {"name":"res-sync","res":{"kind":"profile","id":"Flo012"},"changes":[{"clock":{"sv":0,"cv":0},"delta":[{"op":"add-user", "path": "contacts/", "value": {"email": "tata@example.com"}}]}],"sid":"bc6c61064091cdba8064b741db47695f","tag":"pwty3a"}
+        "addcontact": {"name":"res-sync","res":{"kind":"profile","id":"Flo012"},"changes":[{"clock":{"sv":0,"cv":0},"delta":[{"op":"add-user", "path": "contacts/", "value": {"email": "tata@example.com"}}]}],"sid":"bc6c61064091cdba8064b741db47695f","tag":"pwty3a"},
+        "addnote": {"name":"res-sync","res":{"kind":"folio","id":"Flo012"},"changes":[{"clock":{"sv":0,"cv":0},"delta":[{"op":"add-noteref", "path": "", "value": {"nid": "1", "status": "active"}}]}],"sid":"bc6c61064091cdba8064b741db47695f","tag":"pwty3a"}
     }
 
     function connect() {
