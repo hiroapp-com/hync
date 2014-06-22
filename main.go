@@ -12,6 +12,11 @@ import (
 	ds "github.com/hiro/diffsync"
 )
 
+const (
+	HYNC_VERSION  = "0.5"
+	HYNC_CODENAME = "Marvin"
+)
+
 var (
 	_             = fmt.Print
 	sessionHub    *ds.SessionHub
@@ -191,6 +196,9 @@ var tmpFolio = map[string]ds.ResourceValue{
 }
 
 func main() {
+	log.Println("Spinning up the Hync.")
+	log.Printf("  > version `%s`\n", HYNC_VERSION)
+	log.Printf("  > codename `%s`\n\n", HYNC_CODENAME)
 	notify := make(ds.NotifyListener, 250)
 	note_backend := ds.NewNoteMemBackend(tmpNotes)
 	folioBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.Folio{} })
