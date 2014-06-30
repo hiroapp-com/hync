@@ -168,5 +168,5 @@ func main() {
 	http.HandleFunc("/0/ws", wsHandler)
 
 	log.Println("starting up http/WebSocket module")
-	log.Fatal(http.ListenAndServe("localhost:8888", nil))
+	log.Fatal(http.ListenAndServe("0.0.0.0:8888", nil))
 }
