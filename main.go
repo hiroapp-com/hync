@@ -1,26 +1,31 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
 	"time"
 
+	"database/sql"
+	"encoding/hex"
 	"html/template"
 	"net/http"
 
 	"github.com/gorilla/websocket"
 	ds "github.com/hiro/diffsync"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const (
-	HYNC_VERSION  = "0.5"
-	HYNC_CODENAME = "Marvin"
+	HYNC_VERSION  = "0.6"
+	HYNC_CODENAME = "e043e10440"
 )
 
 var (
 	_             = fmt.Print
 	sessionHub    *ds.SessionHub
 	tokenConsumer *ds.HiroTokens
+	store         *ds.Store
 )
 
 func testHandler(c http.ResponseWriter, req *http.Request) {
@@ -64,7 +69,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 	log.Println("ping")
-	conn := ds.NewConn(sessionHub.Inbox(), tokenConsumer, ds.NewJsonAdapter())
+	conn := ds.NewConn(sessionHub.Inbox(), tokenConsumer, ds.NewJsonAdapter(), store)
 	defer conn.Close()
 
 	from_client := make(chan ds.Event)
@@ -86,6 +91,11 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				event, err := conn.MsgToEvent(msgs[i])
 				if err != nil {
 					log.Println("invalid Message received", err)
+					// N.B. returning here means we're shutting the whole connection
+					// down in the event of a malformed incoming message.
+					// This might be rather drastic behaviour, but for now i'll keep
+					// it in so bug due to malformed data will die severly. in the
+					// hope to keep those bugs out for the release
 					return
 				}
 				ch <- event
@@ -131,121 +141,27 @@ func nao() *ds.UnixTime {
 	t := ds.UnixTime(time.Now())
 	return &t
 }
-
-var tmpNotes = map[string]ds.Note{
-	"aaaaa": ds.Note{
-		Text:      ds.TextValue("a b c d e f"),
-		CreatedAt: *nao(),
-		Peers: []ds.Peer{
-			{User: ds.User{UID: "Flo012"}, CursorPosition: 23, LastSeen: nao(), LastEdit: nao(), Role: "owner"},
-			{User: ds.User{UID: "Bruno0"}, CursorPosition: 42, LastSeen: nao(), LastEdit: nao(), Role: "active"},
-			{User: ds.User{UID: "Sam012"}, CursorPosition: 0, Role: "invited"},
-		},
-	},
-	"bbbbb": ds.Note{
-		Text:      ds.TextValue("-=-=-=-=-=-"),
-		CreatedAt: *nao(),
-		Peers: []ds.Peer{
-			{User: ds.User{UID: "Bruno0"}, CursorPosition: 42, LastSeen: nao(), LastEdit: nao(), Role: "owner"},
-			{User: ds.User{UID: "Flo012"}, CursorPosition: 23, LastSeen: nao(), LastEdit: nao(), Role: "active"},
-		},
-	},
-	"ccccc": ds.Note{
-		Text:      ds.TextValue("Test"),
-		CreatedAt: *nao(),
-		Peers: []ds.Peer{
-			{User: ds.User{UID: "Bruno0"}, CursorPosition: 42, LastSeen: nao(), LastEdit: nao(), Role: "owner"},
-			{User: ds.User{UID: "Flo012"}, CursorPosition: 23, LastSeen: nao(), LastEdit: nao(), Role: "active"},
-		},
-	},
-}
-
-var tmpTokens = map[string]ds.Token{
-	"anon": {
-		Key:    "anon",
-		UserID: "",
-		Resources: []ds.Resource{
-			ds.NewResource("note", "aaaaa"),
-			//ds.NewResource("meta", "ak8Sk")
-		},
-	},
-	"userlogin": {
-		Key:    "userlogin",
-		UserID: "Flo012",
-		Resources: []ds.Resource{
-			ds.NewResource("folio", "Flo012"),
-			ds.NewResource("note", "aaaaa"),
-			ds.NewResource("note", "bbbbb"),
-			ds.NewResource("note", "ccccc"),
-		},
-	},
-	"brunologin": {
-		Key:    "brunologin",
-		UserID: "Bruno0",
-		Resources: []ds.Resource{
-			ds.NewResource("folio", "Bruno0"),
-			ds.NewResource("note", "aaaaa"),
-			ds.NewResource("note", "bbbbb"),
-			ds.NewResource("note", "ccccc"),
-		},
-	},
-}
-
-var tmpProfile = map[string]ds.ResourceValue{
-	"Flo012": ds.Profile{
-		User:     ds.User{UID: "Flo012", Name: "Flo", Email: "flo@qatfy.at"},
-		Contacts: []ds.User{{UID: "Bruno0", Name: "Bruno"}, {UID: "Sam012", Name: "Sam"}},
-	},
-	"Bruno0": ds.Profile{
-		User:     ds.User{UID: "Bruno0", Name: "Bruno", Email: "bruno.haid@gmail.com"},
-		Contacts: []ds.User{{UID: "Flo012", Name: "Flo"}},
-	},
-	"Sam012": ds.Profile{
-		User:     ds.User{UID: "Sam012", Name: "Sam", Email: "samaltman@ycombinator.com", Phone: "(850) 234 3241"},
-		Contacts: []ds.User{{UID: "Flo012", Name: "Flo"}},
-	},
-}
-
-var tmpFolio = map[string]ds.ResourceValue{
-	"Flo012": ds.Folio{
-		ds.NoteRef{NID: "aaaaa", Status: "active"},
-		ds.NoteRef{NID: "bbbbb", Status: "active"},
-		ds.NoteRef{NID: "ccccc", Status: "archive"},
-	},
-	"Bruno0": ds.Folio{
-		ds.NoteRef{NID: "aaaaa", Status: "active"},
-		ds.NoteRef{NID: "bbbbb", Status: "active"},
-		ds.NoteRef{NID: "ccccc", Status: "active"},
-	},
-}
-
 func main() {
 	log.Println("Spinning up the Hync.")
 	log.Printf("  > version `%s`\n", HYNC_VERSION)
 	log.Printf("  > codename `%s`\n\n", HYNC_CODENAME)
+	// connect to DB
+	db, err := sql.Open("sqlite3", "./hiro.db")
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
 	notify := make(ds.NotifyListener, 250)
-	note_backend := ds.NewNoteMemBackend(tmpNotes)
-	folioBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.Folio{} })
-	folioBackend.Dict = tmpFolio
+	store = ds.NewStore(db, notify)
+	store.Mount("note", ds.NewNoteSQLBackend(db))
+	store.Mount("folio", ds.NewFolioSQLBackend(db))
+	store.Mount("profile", ds.NewProfileSQLBackend(db))
 
-	profileBackend := ds.NewMemBackend(func() ds.ResourceValue { return ds.Profile{} })
-	profileBackend.Dict = tmpProfile
-	backends := map[string]ds.StoreBackend{
-		"note":    note_backend,
-		"folio":   folioBackend,
-		"profile": profileBackend,
-	}
-	stores := map[string]*ds.Store{
-		"note":    ds.NewStore("note", backends, notify),
-		"folio":   ds.NewStore("folio", backends, notify),
-		"profile": ds.NewStore("profile", backends, notify),
-	}
-	sess_backend := ds.NewHiroMemSessions(stores)
-	tokenConsumer = ds.NewHiroTokens(sess_backend, stores)
-	tokenConsumer.Tokens = tmpTokens
-	sessionHub = ds.NewSessionHub(sess_backend, stores)
+	sessionBackend := ds.NewSQLSessions(db)
+	tokenConsumer = ds.NewHiroTokens(sessionBackend, db)
+	sessionHub = ds.NewSessionHub(sessionBackend)
 	go sessionHub.Run()
-	go notify.Run(sess_backend, sessionHub.Inbox())
+	go notify.Run(sessionBackend, sessionHub.Inbox())
 
 	http.HandleFunc("/anontoken", anonTokenHandler(db))
 	http.HandleFunc("/client", testHandler)
