@@ -99,6 +99,18 @@ Check `window.changes` in console to see some pre-defined edit-queues
         req = undefined
     }
 
+    function consumeToken(token) {
+        var req = {
+            "name": "token-consume",
+            "sid": window.session.sid,
+            "tag": "client01",
+            "token": token
+        }
+        conn.send(JSON.stringify([req]))
+        console.group("token-consume:  token:'"+token+"' tag:'client01'");
+        req = undefined
+    }
+
     function ehlo() {
         if (window.session === undefined) {
             console.log("cannot ehlo without session. run sendSessionCreate(token) first");
@@ -134,11 +146,12 @@ Check `window.changes` in console to see some pre-defined edit-queues
     }
 
     function connect() {
-        if (window.session === undefined) {
-            wsConnect(function() { sendSessionCreate("userlogin")});
-        } else {
-            wsConnect(ehlo);
-        }
+        wsConnect();
+        //if (window.session === undefined) {
+        //    wsConnect(function() { sendSessionCreate("userlogin")});
+        //} else {
+        //    wsConnect(ehlo);
+        //}
     }
 
     function wsConnect(onopen) {
