@@ -28,6 +28,30 @@ func testHandler(c http.ResponseWriter, req *http.Request) {
 	clientTempl.Execute(c, nil)
 }
 
+func generateToken() string {
+	uuid := make([]byte, 16)
+	if n, err := rand.Read(uuid); err != nil || n != len(uuid) {
+		panic(err)
+	}
+	// RFC 4122
+	uuid[8] = 0x80 // variant bits
+	uuid[4] = 0x40 // v4
+	return hex.EncodeToString(uuid)
+}
+
+func anonTokenHandler(db *sql.DB) http.HandlerFunc {
+	return func(c http.ResponseWriter, req *http.Request) {
+		anonToken := generateToken()
+		_, err := db.Exec("INSERT INTO tokens (token, uid, nid) VALUES (?, '', '')", anonToken)
+		if err != nil {
+			c.Write([]byte(err.Error()))
+			return
+		}
+		log.Println("tokens: created anon token: ", anonToken)
+		c.Write([]byte(anonToken))
+	}
+}
+
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("handling ws request")
 	// TODO: check origin and other WS best-practices
@@ -223,6 +247,7 @@ func main() {
 	go sessionHub.Run()
 	go notify.Run(sess_backend, sessionHub.Inbox())
 
+	http.HandleFunc("/anontoken", anonTokenHandler(db))
 	http.HandleFunc("/client", testHandler)
 	http.HandleFunc("/0/ws", wsHandler)
 
