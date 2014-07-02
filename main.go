@@ -1,15 +1,18 @@
 package main
 
 import (
-	"crypto/rand"
+	"flag"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
+	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
 	"html/template"
 	"net/http"
+	"runtime/pprof"
 
 	"github.com/gorilla/websocket"
 	ds "github.com/hiro/diffsync"
@@ -27,6 +30,8 @@ var (
 	tokenConsumer *ds.HiroTokens
 	store         *ds.Store
 )
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
+var listenAddr = flag.String("listen", "0.0.0.0:8888", "listen on socket")
 
 func testHandler(c http.ResponseWriter, req *http.Request) {
 	clientTempl := template.Must(template.ParseFiles("./html/client.html"))
@@ -145,12 +150,27 @@ func main() {
 	log.Println("Spinning up the Hync.")
 	log.Printf("  > version `%s`\n", HYNC_VERSION)
 	log.Printf("  > codename `%s`\n\n", HYNC_CODENAME)
+	flag.Parse()
+
+	if *cpuprofile != "" {
+		// start profiler
+		// NOTE: does not really work, yet. first we need a graceful shutdown
+		//       of the websever
+		log.Printf("CPU profile requested")
+		prof, _ := os.Create(*cpuprofile)
+		defer prof.Close()
+
+		pprof.StartCPUProfile(prof)
+		defer pprof.StopCPUProfile()
+	}
+
 	// connect to DB
 	db, err := sql.Open("sqlite3", "./hiro.db")
 	if err != nil {
 		panic(err)
 	}
 	defer db.Close()
+
 	notify := make(ds.NotifyListener, 250)
 	store = ds.NewStore(db, notify)
 	store.Mount("note", ds.NewNoteSQLBackend(db))
@@ -168,5 +188,6 @@ func main() {
 	http.HandleFunc("/0/ws", wsHandler)
 
 	log.Println("starting up http/WebSocket module")
-	log.Fatal(http.ListenAndServe("0.0.0.0:8888", nil))
+	log.Printf("listening on http://%s\n", *listenAddr)
+	log.Println(http.ListenAndServe(*listenAddr, nil))
 }
