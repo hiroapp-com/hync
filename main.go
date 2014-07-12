@@ -20,8 +20,8 @@ import (
 )
 
 const (
-	HYNC_VERSION  = "0.6"
-	HYNC_CODENAME = "e043e10440"
+	HYNC_VERSION  = "0.7"
+	HYNC_CODENAME = "HollyHug"
 )
 
 var (
@@ -147,10 +147,10 @@ func nao() *ds.UnixTime {
 	return &t
 }
 func main() {
+	flag.Parse()
 	log.Println("Spinning up the Hync.")
 	log.Printf("  > version `%s`\n", HYNC_VERSION)
 	log.Printf("  > codename `%s`\n\n", HYNC_CODENAME)
-	flag.Parse()
 
 	if *cpuprofile != "" {
 		// start profiler
