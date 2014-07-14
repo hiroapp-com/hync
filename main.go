@@ -1,15 +1,16 @@
 package main
 
 import (
+	"crypto/rand"
+	"crypto/sha512"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"html/template"
 	"net/http"
 	"runtime/pprof"
@@ -38,21 +39,10 @@ func testHandler(c http.ResponseWriter, req *http.Request) {
 	clientTempl.Execute(c, nil)
 }
 
-func generateToken() string {
-	uuid := make([]byte, 16)
-	if n, err := rand.Read(uuid); err != nil || n != len(uuid) {
-		panic(err)
-	}
-	// RFC 4122
-	uuid[8] = 0x80 // variant bits
-	uuid[4] = 0x40 // v4
-	return hex.EncodeToString(uuid)
-}
-
 func anonTokenHandler(db *sql.DB) http.HandlerFunc {
 	return func(c http.ResponseWriter, req *http.Request) {
-		anonToken := generateToken()
-		_, err := db.Exec("INSERT INTO tokens (token, uid, nid) VALUES (?, '', '')", anonToken)
+		anonToken, hashed := generateToken()
+		_, err := db.Exec("INSERT INTO tokens (token, uid, nid) VALUES (?, '', '')", hashed)
 		if err != nil {
 			c.Write([]byte(err.Error()))
 			return
@@ -146,6 +136,7 @@ func nao() *ds.UnixTime {
 	t := ds.UnixTime(time.Now())
 	return &t
 }
+
 func main() {
 	flag.Parse()
 	log.Println("Spinning up the Hync.")
@@ -170,18 +161,21 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-
-	notify := make(ds.NotifyListener, 250)
-	store = ds.NewStore(db, notify)
-	store.Mount("note", ds.NewNoteSQLBackend(db))
-	store.Mount("folio", ds.NewFolioSQLBackend(db))
-	store.Mount("profile", ds.NewProfileSQLBackend(db))
-
-	sessionBackend := ds.NewSQLSessions(db)
-	tokenConsumer = ds.NewHiroTokens(sessionBackend, db)
-	sessionHub = ds.NewSessionHub(sessionBackend)
-	go sessionHub.Run()
-	go notify.Run(sessionBackend, sessionHub.Inbox())
+	commReqs := make(chan ds.CommRequest, 200)
+	go func() {
+		for req := range commReqs {
+			log.Printf("communication requested: %v\n", req)
+		}
+	}()
+	srv, err := ds.NewServer(db, commReqs)
+	if err != nil {
+		panic(err)
+	}
+	defer srv.Close()
+	srv.Store.Mount("note", ds.NewNoteSQLBackend(db))
+	srv.Store.Mount("folio", ds.NewFolioSQLBackend(db))
+	srv.Store.Mount("profile", ds.NewProfileSQLBackend(db))
+	srv.Run()
 
 	http.HandleFunc("/anontoken", anonTokenHandler(db))
 	http.HandleFunc("/client", testHandler)
@@ -190,4 +184,21 @@ func main() {
 	log.Println("starting up http/WebSocket module")
 	log.Printf("listening on http://%s\n", *listenAddr)
 	log.Println(http.ListenAndServe(*listenAddr, nil))
+}
+
+func generateToken() (string, string) {
+	uuid := make([]byte, 16)
+	if n, err := rand.Read(uuid); err != nil || n != len(uuid) {
+		panic(err)
+	}
+	// RFC 4122
+	uuid[8] = 0x80 // variant bits
+	uuid[4] = 0x40 // v4
+	plain := hex.EncodeToString(uuid)
+	h := sha512.New()
+	h.Write(uuid)
+	hashed := hex.EncodeToString(h.Sum(nil))
+	//hashed_key := fmt.Sprintf("%x", h.Sum(nil))
+	log.Printf("CREATED TOKEN: uuid: `%v` plain: `%s`, hashed: `%s`", uuid, plain, hashed)
+	return plain, hashed
 }
