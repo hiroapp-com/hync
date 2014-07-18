@@ -26,10 +26,8 @@ const (
 )
 
 var (
-	_             = fmt.Print
-	sessionHub    *ds.SessionHub
-	tokenConsumer *ds.HiroTokens
-	store         *ds.Store
+	_   = fmt.Print
+	srv *ds.Server
 )
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var listenAddr = flag.String("listen", "0.0.0.0:8888", "listen on socket")
@@ -41,14 +39,13 @@ func testHandler(c http.ResponseWriter, req *http.Request) {
 
 func anonTokenHandler(db *sql.DB) http.HandlerFunc {
 	return func(c http.ResponseWriter, req *http.Request) {
-		anonToken, hashed := generateToken()
-		_, err := db.Exec("INSERT INTO tokens (token, uid, nid) VALUES (?, '', '')", hashed)
+		token, err := srv.Token("anon")
 		if err != nil {
-			c.Write([]byte(err.Error()))
+			log.Println("failed at creating anon token: ", err)
 			return
 		}
-		log.Println("tokens: created anon token: ", anonToken)
-		c.Write([]byte(anonToken))
+		log.Println("tokens: created anon token: ", token)
+		c.Write([]byte(token))
 	}
 }
 
@@ -64,8 +61,9 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer ws.Close()
 	log.Println("ping")
-	conn := ds.NewConn(sessionHub.Inbox(), tokenConsumer, ds.NewJsonAdapter(), store)
+	conn := srv.NewConn()
 	defer conn.Close()
+	log.Println("pong")
 
 	from_client := make(chan ds.Event)
 	// handle goroutine for message from client
@@ -167,7 +165,7 @@ func main() {
 			log.Printf("communication requested: %v\n", req)
 		}
 	}()
-	srv, err := ds.NewServer(db, commReqs)
+	srv, err = ds.NewServer(db, commReqs)
 	if err != nil {
 		panic(err)
 	}
