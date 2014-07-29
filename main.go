@@ -17,6 +17,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	ds "github.com/hiro/diffsync"
+	"github.com/hiro/hync/comm"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -159,13 +160,12 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-	commReqs := make(chan ds.CommRequest, 200)
-	go func() {
-		for req := range commReqs {
-			log.Printf("communication requested: %v\n", req)
-		}
-	}()
-	srv, err = ds.NewServer(db, commReqs)
+	commHandler := comm.NewMandrill()
+	if commHandler == nil {
+		// MANDRILL_KEY env var empty, fallback to logger
+		commHandler = comm.NewLogHandler()
+	}
+	srv, err = ds.NewServer(db, commHandler)
 	if err != nil {
 		panic(err)
 	}
