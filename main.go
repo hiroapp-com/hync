@@ -12,6 +12,8 @@ import (
 
 	"database/sql"
 	"html/template"
+	"net"
+
 	"net/http"
 	"runtime/pprof"
 
@@ -27,11 +29,13 @@ const (
 )
 
 var (
-	_   = fmt.Print
-	srv *ds.Server
+	_              = fmt.Print
+	DefaultAdapter = ds.NewJsonAdapter()
+	srv            *ds.Server
 )
 var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var listenAddr = flag.String("listen", "0.0.0.0:8888", "listen on socket")
+var commListenAddr = flag.String("conn_listen", "0.0.0.0:7777", "listen JSON-RPC server for communication handling on this addr")
 
 func testHandler(c http.ResponseWriter, req *http.Request) {
 	clientTempl := template.Must(template.ParseFiles("./html/client.html"))
@@ -136,6 +140,17 @@ func nao() *ds.UnixTime {
 	return &t
 }
 
+func commRPCServer(handler comm.Handler, addr string) {
+	// start RPC wrapper for comm.Handler
+	commListener, err := net.Listen("tcp", addr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer commListener.Close()
+	commRPC := comm.WrapRPC(handler)
+	commRPC.Run(commListener)
+}
+
 func main() {
 	flag.Parse()
 	log.Println("Spinning up the Hync.")
@@ -165,6 +180,9 @@ func main() {
 		// MANDRILL_KEY env var empty, fallback to logger
 		commHandler = comm.NewLogHandler()
 	}
+	go commRPCServer(commHandler, *commListenAddr)
+
+	// create server environment
 	srv, err = ds.NewServer(db, commHandler)
 	if err != nil {
 		panic(err)
