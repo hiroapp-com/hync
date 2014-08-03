@@ -55,23 +55,32 @@ func anonTokenHandler(db *sql.DB) http.HandlerFunc {
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("handling ws request")
+	log.Println("ws: incoming connection")
 	// TODO: check origin and other WS best-practices
 	ws, err := websocket.Upgrade(w, r, nil, 1024, 1024)
 	if _, ok := err.(websocket.HandshakeError); ok {
-		http.Error(w, "websocket handshake failed", 400)
+		http.Error(w, "websocket: handshake failed", 400)
 		return
 	} else if err != nil {
 		return
 	}
 	defer ws.Close()
-	log.Println("ping")
-	conn := srv.NewConn()
-	defer conn.Close()
-	log.Println("pong")
+	adapter := DefaultAdapter
 
 	from_client := make(chan ds.Event)
-	// handle goroutine for message from client
+	to_client := make(chan ds.Event, 16)
+	// inject only Client into Context passed down to server
+	ctx := ds.Context{
+		Client: ds.FuncHandler{func(event ds.Event) error {
+			select {
+			case to_client <- event:
+				return nil
+			case <-time.After(3 * time.Second):
+				return ds.EventTimeoutError{}
+			}
+		}}}
+
+	// fetch messages from WebSocket and pipe the into incoming pipe
 	go func(ch chan ds.Event) {
 		defer close(ch)
 		for {
@@ -80,13 +89,13 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println("error reading from websocket connection", err)
 				return
 			}
-			msgs, err := conn.Demux(msg)
+			msgs, err := adapter.Demux(msg)
 			if err != nil {
 				log.Println("error de-muxing message list from client")
 				continue
 			}
 			for i := range msgs {
-				event, err := conn.MsgToEvent(msgs[i])
+				event, err := adapter.MsgToEvent(msgs[i])
 				if err != nil {
 					log.Println("invalid Message received", err)
 					// N.B. returning here means we're shutting the whole connection
@@ -96,6 +105,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 					// hope to keep those bugs out for the release
 					return
 				}
+				event.Context(ctx)
 				ch <- event
 			}
 		}
@@ -108,20 +118,22 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			log.Println("ws: received ", event)
-			conn.ClientEvent(event)
-		case event, ok := <-conn.ToClient():
+			if err := srv.Handle(event); err != nil {
+				log.Println("websocket: server could not handle incoming event", err)
+			}
+		case event, ok := <-to_client:
 			if !ok {
 				log.Println("error receiving from client, shutting down", err)
 				//shut. down. everything.
 				return
 			}
-			msg, err := conn.EventToMsg(event)
+			msg, err := adapter.EventToMsg(event)
 			if err != nil {
 				log.Println("received invalid event from system", err)
 				//shut. down. everything.
 				return
 			}
-			muxed, err := conn.Mux([][]byte{msg})
+			muxed, err := adapter.Mux([][]byte{msg})
 			if err != nil {
 				log.Println("could not mux outgoing messages into message-list", err)
 				continue
@@ -187,7 +199,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer srv.Close()
+	defer srv.Stop()
+
 	srv.Store.Mount("note", ds.NewNoteSQLBackend(db))
 	srv.Store.Mount("folio", ds.NewFolioSQLBackend(db))
 	srv.Store.Mount("profile", ds.NewProfileSQLBackend(db))
