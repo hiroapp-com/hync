@@ -15,6 +15,17 @@ type Rcpt interface {
 
 type Handler func(Request) error
 
+func HandlerGroup(fns ...Handler) Handler {
+	return func(req Request) error {
+		for i := range fns {
+			if err := fns[i](req); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+}
+
 type RequestTimeoutError struct{}
 
 type Request struct {

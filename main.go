@@ -187,11 +187,18 @@ func main() {
 		panic(err)
 	}
 	defer db.Close()
-	commHandler := comm.NewMandrill()
-	if commHandler == nil {
-		// MANDRILL_KEY env var empty, fallback to logger
-		commHandler = comm.NewLogHandler()
+	commHandlers := []comm.Handler{}
+	if mandrill := comm.NewMandrill(); mandrill != nil {
+		commHandlers = append(commHandlers, mandrill)
 	}
+	if twilio := comm.NewTwilio(); twilio != nil {
+		commHandlers = append(commHandlers, twilio)
+	}
+	if len(commHandlers) == 0 {
+		// MANDRILL_KEY env var empty, fallback to logger
+		commHandlers = []comm.Handler{comm.NewLogHandler()}
+	}
+	commHandler := comm.HandlerGroup(commHandlers...)
 	go commRPCServer(commHandler, *commListenAddr)
 
 	// create server environment

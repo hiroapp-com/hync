@@ -70,7 +70,7 @@ func withMandrill(t *testing.T, fn func(Handler)) {
 
 func assert(t *testing.T, cond bool, msg string, args ...interface{}) bool {
 	if !cond {
-		t.Errorf(msg, args)
+		t.Errorf(msg, args...)
 		return false
 	}
 	return true
