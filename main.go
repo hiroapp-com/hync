@@ -37,6 +37,21 @@ var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
 var listenAddr = flag.String("listen", "0.0.0.0:8888", "listen on socket")
 var commListenAddr = flag.String("conn_listen", "0.0.0.0:7777", "listen JSON-RPC server for communication handling on this addr")
 
+var wsUpgrader = websocket.Upgrader{
+	ReadBufferSize:   1024,
+	WriteBufferSize:  1024,
+	Subprotocols:     []string{"hync"},
+	HandshakeTimeout: 5 * time.Second,
+	CheckOrigin: func(r *http.Request) bool {
+		switch r.Header.Get("Origin") {
+		case "http://localhost:5000", "https://beta.hiroapp.com":
+		default:
+			return false
+		}
+		return true
+	},
+}
+
 func testHandler(c http.ResponseWriter, req *http.Request) {
 	clientTempl := template.Must(template.ParseFiles("./html/client.html"))
 	clientTempl.Execute(c, nil)
@@ -57,14 +72,14 @@ func anonTokenHandler(db *sql.DB) http.HandlerFunc {
 func wsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Println("ws: incoming connection")
 	// TODO: check origin and other WS best-practices
-	ws, err := websocket.Upgrade(w, r, nil, 1024, 1024)
+	conn, err := wsUpgrader.Upgrade(w, r, nil)
 	if _, ok := err.(websocket.HandshakeError); ok {
-		http.Error(w, "websocket: handshake failed", 400)
+		log.Println("websocket: handshake failed", err)
 		return
 	} else if err != nil {
 		return
 	}
-	defer ws.Close()
+	defer conn.Close()
 	adapter := DefaultAdapter
 
 	from_client := make(chan ds.Event)
@@ -84,7 +99,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	go func(ch chan ds.Event) {
 		defer close(ch)
 		for {
-			_, msg, err := ws.ReadMessage()
+			_, msg, err := conn.ReadMessage()
 			if err != nil {
 				log.Println("error reading from websocket connection", err)
 				return
@@ -138,7 +153,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 				log.Println("could not mux outgoing messages into message-list", err)
 				continue
 			}
-			if err = ws.WriteMessage(websocket.TextMessage, muxed); err != nil {
+			if err = conn.WriteMessage(websocket.TextMessage, muxed); err != nil {
 				log.Println("error writing to websocket connection:", err)
 				//shut. down. everything.
 				return
