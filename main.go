@@ -203,14 +203,14 @@ func main() {
 	}
 	defer db.Close()
 	commHandlers := []comm.Handler{}
-	if mandrill := comm.NewMandrill(); mandrill != nil {
-		commHandlers = append(commHandlers, mandrill)
+	if sendwithus := comm.NewSendwithus(); sendwithus != nil {
+		commHandlers = append(commHandlers, sendwithus)
 	}
 	if twilio := comm.NewTwilio(); twilio != nil {
 		commHandlers = append(commHandlers, twilio)
 	}
 	if len(commHandlers) == 0 {
-		// MANDRILL_KEY env var empty, fallback to logger
+		// no comm handlers configured, fallback to logger
 		commHandlers = []comm.Handler{comm.NewLogHandler()}
 	}
 	commHandler := comm.HandlerGroup(commHandlers...)
