@@ -57,10 +57,13 @@ func NewSendwithus() func(Request) error {
 		// send a template
 		tpl := SWUTemplateRequest{EmailID: r.Kind, Data: r.Data}
 		switch r.Kind {
-		case "signup-verify", "signup-setpwd", "reset-pwd", "welcome", "welcome-setpwd":
+		case "signup-verify", "signup-setpwd", "reset-pwd", "verify":
 			tpl.EmailID = "tem_Gk92owL3EYH9HUhjLPjtKN"
 		case "invite":
 			tpl.EmailID = "tem_o26JFZYdbr6u58whiZRd37"
+		case "welcome", "welcome-setpwd":
+			// ignore until these flows are implemented
+			return nil
 		}
 		r.Data["reason"] = r.Kind
 		tpl.Data = r.Data
