@@ -64,12 +64,15 @@ func NewTwilio() Handler {
 			// ignore
 			return nil
 		}
+		log.Println("twilio: received request", req)
 		var body string
 		switch req.Kind {
 		case "invite":
-			body = fmt.Sprintf("%s wants to write with you at http://localhost:5000/#%s - Hiro, writing notes together", req.Data["inviter"], req.Data["token"])
+			body = fmt.Sprintf("%s shared the note '%s' with you. You can read or edit it by visiting https://beta.hiroapp.com/#sc:%s (no login needed)", req.Data["inviter_name"], req.Data["title"], req.Data["token"])
 		case "verify":
-			body = fmt.Sprintf("Please verify your phone-number by opening http://localhost:5000/#%s")
+			body = fmt.Sprintf("Please verify your device by visiting https://beta.hiroapp.com/#sc:%s", req.Data["token"])
+		case "reset-pwd":
+			body = fmt.Sprintf("You can reset your password now at https://beta.hiroapp.com/#sc:%s", req.Data["token"])
 		default:
 		}
 		if body == "" {
