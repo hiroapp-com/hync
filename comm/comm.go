@@ -16,11 +16,20 @@ type Rcpt interface {
 type Handler func(Request) error
 
 func HandlerGroup(fns ...Handler) Handler {
+	// log errors
+	errch := make(chan error)
+	go func(ch chan error) {
+		for err := range ch {
+			if err != nil {
+				log.Println("error while processing comm.Request: ", err)
+			}
+		}
+	}(errch)
 	return func(req Request) error {
 		for i := range fns {
-			if err := fns[i](req); err != nil {
-				return err
-			}
+			go func(fn Handler) {
+				errch <- fn(req)
+			}(fns[i])
 		}
 		return nil
 	}

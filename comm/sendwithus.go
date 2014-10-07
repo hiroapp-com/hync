@@ -3,6 +3,7 @@ package comm
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"log"
@@ -48,12 +49,12 @@ func NewSendwithus() func(Request) error {
 		return nil
 	}
 	return func(r Request) error {
-		log.Println("sendwithus: received request", r)
 		email, addrKind := r.Rcpt.Addr()
 		if addrKind != "email" {
 			// ignore
 			return nil
 		}
+		log.Println("sendwithus: received request", r)
 		// send a template
 		tpl := SWUTemplateRequest{EmailID: r.Kind, Data: r.Data}
 		switch r.Kind {
@@ -76,25 +77,21 @@ func NewSendwithus() func(Request) error {
 		if err != nil {
 			return err
 		}
-		go func() {
-			res, err := swuApiRequest(SWUSendURL, bytes.NewReader(data))
-			if err != nil {
-				log.Printf("sendwithus: http request failed: %s", err.Error())
-				return
-			}
-			defer res.Body.Close()
-			if res.StatusCode != 200 {
-				m, _ := ioutil.ReadAll(res.Body)
-				log.Printf("sendwithus: send request failed: %d %s", res.StatusCode, string(m))
-				return
-			}
-			resp := SWUResponse{}
-			if err = json.NewDecoder(res.Body).Decode(&resp); err != nil {
-				log.Printf("sendwithus: json error: %s", err)
-			} else if !resp.Success {
-				log.Printf("sendwithus: send of template NOT successfull with status `%s`", resp.Status)
-			}
-		}()
+		res, err := swuApiRequest(SWUSendURL, bytes.NewReader(data))
+		if err != nil {
+			return fmt.Errorf("sendwithus: http request failed: %s", err.Error())
+		}
+		defer res.Body.Close()
+		if res.StatusCode != 200 {
+			m, _ := ioutil.ReadAll(res.Body)
+			return fmt.Errorf("sendwithus: send request failed: %d %s", res.StatusCode, string(m))
+		}
+		resp := SWUResponse{}
+		if err = json.NewDecoder(res.Body).Decode(&resp); err != nil {
+			return fmt.Errorf("sendwithus: json error: %s", err)
+		} else if !resp.Success {
+			return fmt.Errorf("sendwithus: send of template NOT successfull with status `%s`", resp.Status)
+		}
 		return nil
 	}
 }
