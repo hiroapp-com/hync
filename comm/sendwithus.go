@@ -58,10 +58,18 @@ func NewSendwithus() func(Request) error {
 		// send a template
 		tpl := SWUTemplateRequest{EmailID: r.Kind, Data: r.Data}
 		switch r.Kind {
-		case "signup-verify", "signup-setpwd", "reset-pwd", "verify":
-			tpl.EmailID = "tem_Gk92owL3EYH9HUhjLPjtKN"
+		case "signup-verify", "verify":
+			// SWU: "Verify Email"
+			tpl.EmailID = "tem_kVj6HXpeeSekDDSFFXXAqC"
+		case "reset-pwd":
+			// SWU: "Reset password"
+			tpl.EmailID = "tem_6WSwM6oCtA2xnmCVZ52FvR"
 		case "invite":
+			// SWU: "Sharing"
 			tpl.EmailID = "tem_o26JFZYdbr6u58whiZRd37"
+		case "signup-setpwd":
+			// SWU: "Generic Transactional"
+			tpl.EmailID = "tem_Gk92owL3EYH9HUhjLPjtKN"
 		case "welcome", "welcome-setpwd":
 			// ignore until these flows are implemented
 			return nil
@@ -77,6 +85,7 @@ func NewSendwithus() func(Request) error {
 		if err != nil {
 			return err
 		}
+		//log.Println(string(data))
 		res, err := swuApiRequest(SWUSendURL, bytes.NewReader(data))
 		if err != nil {
 			return fmt.Errorf("sendwithus: http request failed: %s", err.Error())
