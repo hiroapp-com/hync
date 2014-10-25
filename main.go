@@ -20,7 +20,7 @@ import (
 	"github.com/gorilla/websocket"
 	ds "github.com/hiro/diffsync"
 	"github.com/hiro/hync/comm"
-	_ "github.com/mattn/go-sqlite3"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -32,10 +32,11 @@ var (
 	_              = fmt.Print
 	DefaultAdapter = ds.NewJsonAdapter()
 	srv            *ds.Server
+	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
+	listenAddr     = flag.String("listen", "0.0.0.0:8888", "listen on socket")
+	commListenAddr = flag.String("conn_listen", "0.0.0.0:7777", "listen JSON-RPC server for communication handling on this addr")
+	dbHost         = flag.String("db_host", "postgres://hiro:hiro@localhost:5432/hiro?sslmode=require", "connection string to establish PgSQL connection")
 )
-var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to file")
-var listenAddr = flag.String("listen", "0.0.0.0:8888", "listen on socket")
-var commListenAddr = flag.String("conn_listen", "0.0.0.0:7777", "listen JSON-RPC server for communication handling on this addr")
 
 var wsUpgrader = websocket.Upgrader{
 	ReadBufferSize:   1024,
@@ -197,7 +198,7 @@ func main() {
 	}
 
 	// connect to DB
-	db, err := sql.Open("sqlite3", "./hiro.db")
+	db, err := sql.Open("postgres", *dbHost)
 	if err != nil {
 		panic(err)
 	}
