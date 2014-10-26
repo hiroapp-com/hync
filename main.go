@@ -17,9 +17,9 @@ import (
 	"net/http"
 	"runtime/pprof"
 
+	"bitbucket.org/sushimako/diffsync"
+	"bitbucket.org/sushimako/hync/comm"
 	"github.com/gorilla/websocket"
-	ds "github.com/hiro/diffsync"
-	"github.com/hiro/hync/comm"
 	_ "github.com/lib/pq"
 )
 
@@ -30,8 +30,8 @@ const (
 
 var (
 	_              = fmt.Print
-	DefaultAdapter = ds.NewJsonAdapter()
-	srv            *ds.Server
+	DefaultAdapter = diffsync.NewJsonAdapter()
+	srv            *diffsync.Server
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	listenAddr     = flag.String("listen", "0.0.0.0:8888", "listen on socket")
 	commListenAddr = flag.String("conn_listen", "0.0.0.0:7777", "listen JSON-RPC server for communication handling on this addr")
@@ -83,21 +83,21 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 	adapter := DefaultAdapter
 
-	from_client := make(chan ds.Event)
-	to_client := make(chan ds.Event, 16)
+	from_client := make(chan diffsync.Event)
+	to_client := make(chan diffsync.Event, 16)
 	// inject only Client into Context passed down to server
-	ctx := ds.Context{
-		Client: ds.FuncHandler{func(event ds.Event) error {
+	ctx := diffsync.Context{
+		Client: diffsync.FuncHandler{func(event diffsync.Event) error {
 			select {
 			case to_client <- event:
 				return nil
 			case <-time.After(3 * time.Second):
-				return ds.EventTimeoutError{}
+				return diffsync.EventTimeoutError{}
 			}
 		}}}
 
 	// fetch messages from WebSocket and pipe the into incoming pipe
-	go func(ch chan ds.Event) {
+	go func(ch chan diffsync.Event) {
 		defer close(ch)
 		for {
 			_, msg, err := conn.ReadMessage()
@@ -163,8 +163,8 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func nao() *ds.UnixTime {
-	t := ds.UnixTime(time.Now())
+func nao() *diffsync.UnixTime {
+	t := diffsync.UnixTime(time.Now())
 	return &t
 }
 
@@ -218,15 +218,15 @@ func main() {
 	go commRPCServer(commHandler, *commListenAddr)
 
 	// create server environment
-	srv, err = ds.NewServer(db, commHandler)
+	srv, err = diffsync.NewServer(db, commHandler)
 	if err != nil {
 		panic(err)
 	}
 	defer srv.Stop()
 
-	srv.Store.Mount("note", ds.NewNoteSQLBackend(db))
-	srv.Store.Mount("folio", ds.NewFolioSQLBackend(db))
-	srv.Store.Mount("profile", ds.NewProfileSQLBackend(db))
+	srv.Store.Mount("note", diffsync.NewNoteSQLBackend(db))
+	srv.Store.Mount("folio", diffsync.NewFolioSQLBackend(db))
+	srv.Store.Mount("profile", diffsync.NewProfileSQLBackend(db))
 	srv.Run()
 
 	http.HandleFunc("/anontoken", anonTokenHandler(db))

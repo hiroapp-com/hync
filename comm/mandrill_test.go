@@ -4,7 +4,7 @@ import (
 	"log"
 	"testing"
 
-	. "github.com/hiro/hync/comm"
+	. "bitbucket.org/sushimako/hync/comm"
 )
 
 type testRecipient string
