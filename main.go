@@ -21,7 +21,6 @@ import (
 
 	"bitbucket.org/sushimako/diffsync"
 	"bitbucket.org/sushimako/hync/comm"
-	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 )
 
@@ -32,28 +31,12 @@ const (
 
 var (
 	_              = fmt.Print
-	DefaultAdapter = diffsync.NewJsonAdapter()
 	srv            *diffsync.Server
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	listenAddr     = flag.String("listen", "0.0.0.0:8888", "listen on socket")
 	commListenAddr = flag.String("conn_listen", "0.0.0.0:7777", "listen JSON-RPC server for communication handling on this addr")
 	dbHost         = flag.String("db_host", "postgres://hiro:hiro@localhost:5432/hiro?sslmode=require", "connection string to establish PgSQL connection")
 )
-
-var wsUpgrader = websocket.Upgrader{
-	ReadBufferSize:   1024,
-	WriteBufferSize:  1024,
-	Subprotocols:     []string{"hync"},
-	HandshakeTimeout: 5 * time.Second,
-	CheckOrigin: func(r *http.Request) bool {
-		switch r.Header.Get("Origin") {
-		case "http://localhost:5000", "https://beta.hiroapp.com":
-		default:
-			return false
-		}
-		return true
-	},
-}
 
 func testHandler(c http.ResponseWriter, req *http.Request) {
 	clientTempl := template.Must(template.ParseFiles("./html/client.html"))
@@ -69,99 +52,6 @@ func anonTokenHandler(db *sql.DB) http.HandlerFunc {
 		}
 		log.Println("tokens: created anon token: ", token)
 		c.Write([]byte(token))
-	}
-}
-
-func wsHandler(w http.ResponseWriter, r *http.Request) {
-	log.Println("ws: incoming connection")
-	// TODO: check origin and other WS best-practices
-	conn, err := wsUpgrader.Upgrade(w, r, nil)
-	if _, ok := err.(websocket.HandshakeError); ok {
-		log.Println("websocket: handshake failed", err)
-		return
-	} else if err != nil {
-		return
-	}
-	defer conn.Close()
-	adapter := DefaultAdapter
-
-	from_client := make(chan diffsync.Event)
-	to_client := make(chan diffsync.Event, 16)
-	// inject only Client into Context passed down to server
-	ctx := diffsync.Context{
-		Client: diffsync.FuncHandler{func(event diffsync.Event) error {
-			select {
-			case to_client <- event:
-				return nil
-			case <-time.After(3 * time.Second):
-				return diffsync.EventTimeoutError{}
-			}
-		}}}
-
-	// fetch messages from WebSocket and pipe the into incoming pipe
-	go func(ch chan diffsync.Event) {
-		defer close(ch)
-		for {
-			_, msg, err := conn.ReadMessage()
-			if err != nil {
-				log.Println("error reading from websocket connection", err)
-				return
-			}
-			msgs, err := adapter.Demux(msg)
-			if err != nil {
-				log.Println("error de-muxing message list from client")
-				continue
-			}
-			for i := range msgs {
-				event, err := adapter.MsgToEvent(msgs[i])
-				if err != nil {
-					log.Println("invalid Message received", err)
-					// N.B. returning here means we're shutting the whole connection
-					// down in the event of a malformed incoming message.
-					// This might be rather drastic behaviour, but for now i'll keep
-					// it in so bug due to malformed data will die severly. in the
-					// hope to keep those bugs out for the release
-					return
-				}
-				event.Context(ctx)
-				ch <- event
-			}
-		}
-	}(from_client)
-	for {
-		select {
-		case event, ok := <-from_client:
-			if !ok {
-				// ws read failed, shutting down connection
-				return
-			}
-			log.Println("ws: received ", event)
-			if err := srv.Handle(event); err != nil {
-				log.Println("websocket: server could not handle incoming event", err)
-			}
-		case event, ok := <-to_client:
-			if !ok {
-				log.Println("error receiving from client, shutting down", err)
-				//shut. down. everything.
-				return
-			}
-			msg, err := adapter.EventToMsg(event)
-			if err != nil {
-				log.Println("received invalid event from system", err)
-				//shut. down. everything.
-				return
-			}
-			muxed, err := adapter.Mux([][]byte{msg})
-			if err != nil {
-				log.Println("could not mux outgoing messages into message-list", err)
-				continue
-			}
-			if err = conn.WriteMessage(websocket.TextMessage, muxed); err != nil {
-				log.Println("error writing to websocket connection:", err)
-				//shut. down. everything.
-				return
-			}
-		}
 	}
 }
 
@@ -231,9 +121,11 @@ func main() {
 	srv.Store.Mount("profile", diffsync.NewProfileSQLBackend(db))
 	srv.Run()
 
+	wsh := NewWsHandler(srv)
 	http.HandleFunc("/anontoken", anonTokenHandler(db))
 	http.HandleFunc("/client", testHandler)
-	http.HandleFunc("/0/ws", wsHandler)
+	http.Handle("/0/ws", wsh)
+	defer wsh.Stop()
 
 	log.Println("starting up http/WebSocket module")
 	log.Printf("listening on http://%s\n", *listenAddr)
