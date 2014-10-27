@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"database/sql"
@@ -235,7 +237,12 @@ func main() {
 
 	log.Println("starting up http/WebSocket module")
 	log.Printf("listening on http://%s\n", *listenAddr)
-	log.Println(http.ListenAndServe(*listenAddr, nil))
+	go func() {
+		log.Println(http.ListenAndServe(*listenAddr, nil))
+	}()
+	sigch := make(chan os.Signal)
+	signal.Notify(sigch, syscall.SIGINT, syscall.SIGTERM)
+	log.Println("signal", <-sigch)
 }
 
 func generateToken() (string, string) {
