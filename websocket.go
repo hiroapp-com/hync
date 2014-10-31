@@ -61,10 +61,8 @@ func (h *WsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.wg.Add(1)
-	defer func() {
-		h.wg.Done()
-		conn.Close()
-	}()
+	defer h.wg.Done()
+	defer conn.Close()
 
 	from_client := make(chan diffsync.Event)
 	to_client := make(chan diffsync.Event, 16)
@@ -140,6 +138,17 @@ func (h *WsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err = conn.WriteMessage(websocket.TextMessage, muxed); err != nil {
 				log.Println("error writing to websocket connection:", err)
 				//shut. down. everything.
+				return
+			}
+		case <-time.After(30 * time.Second):
+			// heartbeat ping message evey 30s
+			// currently nginx is proxying between the client and hync's
+			// websocket handler. nginx has a defined proxy timeout of 60s
+			// after which it will close the connection to the proxy but not
+			// to the client.
+			// This hopefully tells nginx that hync's listener is still alive!
+			if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Time{}); err != nil {
+				log.Println("ws: error sending websocket.PingMessage")
 				return
 			}
 		case <-h.done:
