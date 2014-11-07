@@ -68,7 +68,16 @@ func NewTwilio() Handler {
 		var body string
 		switch req.Kind {
 		case "invite":
-			body = fmt.Sprintf("%s shared the note '%s' with you: https://beta.hiroapp.com/#%s", req.Data["inviter_name"], req.Data["title"], req.Data["token"])
+			from := firstNonEmpty(req.Data["inviter_name"], req.Data["inviter_phone"], req.Data["inviter_email"], "Someone")
+			if len(from) > 25 {
+				from = from[:25]
+			}
+			peek := firstNonEmpty(req.Data["title"], req.Data["peek"], "New Note")
+			remaining := 160 - len(from) - 32 - 56 // update last number when changin the share-text
+			if len(peek) > remaining {
+				peek = peek[:remaining-3] + "..."
+			}
+			body = fmt.Sprintf("%s shared the note '%s' with you: https://beta.hiroapp.com/#%s", from, peek, req.Data["token"])
 		case "verify":
 			body = fmt.Sprintf("Please verify your device by visiting https://beta.hiroapp.com/#v:%s", req.Data["token"])
 		case "reset-pwd":
@@ -80,6 +89,15 @@ func NewTwilio() Handler {
 		}
 		return SendSMS(phone, body)
 	}
+}
+
+func firstNonEmpty(args ...string) string {
+	for i := range args {
+		if args[i] != "" {
+			return args[i]
+		}
+	}
+	return ""
 }
 
 func init() {
