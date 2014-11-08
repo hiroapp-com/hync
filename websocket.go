@@ -62,7 +62,12 @@ func (h *WsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.wg.Add(1)
 	defer h.wg.Done()
-	defer conn.Close()
+	defer func(c *websocket.Conn) {
+		if err := c.WriteControl(websocket.CloseMessage, []byte{}, time.Time{}); err != nil {
+			log.Println("ws: error sending websocket.CloseMessage", err)
+		}
+		c.Close()
+	}(conn)
 
 	from_client := make(chan diffsync.Event)
 	to_client := make(chan diffsync.Event, 16)
