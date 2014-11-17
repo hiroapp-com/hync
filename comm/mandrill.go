@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 
 	"encoding/json"
 )
@@ -197,7 +196,7 @@ func NewMandrill() func(Request) error {
 				return err
 			}
 		case "verify":
-			msg.SetMergeVars(email, map[string]string{"TOKEN": req.Data["token"]})
+			msg.SetMergeVars(email, map[string]string{"TOKEN": req.Data["token"].(string)})
 			tpl := NewTemplateRequest("verify", msg)
 			err := sendMessage(tpl)
 			switch err.(type) {
@@ -219,14 +218,14 @@ func NewMandrill() func(Request) error {
 			// all done
 		case "invite":
 			msg.SetMergeVars(email, map[string]string{
-				"TOKEN":        req.Data["token"],
-				"NOTE_ID":      req.Data["nid"],
-				"INVITER_NAME": req.Data["inviter_name"],
+				"TOKEN":        req.Data["token"].(string),
+				"NOTE_ID":      req.Data["nid"].(string),
+				"INVITER_NAME": req.Data["inviter_name"].(string),
 			})
 			tpl := NewTemplateRequest("invite", msg)
-			tpl.AddContent("note_title", req.Data["note_title"])
-			tpl.AddContent("note_peek", req.Data["note_peek"])
-			if numPeers, _ := strconv.Atoi(req.Data["num_peers"]); numPeers > 2 {
+			tpl.AddContent("note_title", req.Data["note_title"].(string))
+			tpl.AddContent("note_peek", req.Data["note_peek"].(string))
+			if numPeers, _ := req.Data["num_peers"].(int); numPeers > 2 {
 				tpl.AddContent("extra_peers", fmt.Sprintf("(and %d other people)", numPeers-2))
 			}
 			err := sendMessage(tpl)

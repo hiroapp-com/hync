@@ -40,7 +40,7 @@ type RequestTimeoutError struct{}
 type Request struct {
 	Kind string
 	Rcpt
-	Data map[string]string
+	Data map[string]interface{}
 }
 
 type StaticRcpt struct {
@@ -49,7 +49,7 @@ type StaticRcpt struct {
 	Kind    string `json:"kind"`
 }
 
-func NewRequest(kind string, rcpt Rcpt, data map[string]string) Request {
+func NewRequest(kind string, rcpt Rcpt, data map[string]interface{}) Request {
 	return Request{
 		Kind: kind,
 		Rcpt: rcpt,
@@ -83,10 +83,10 @@ func (req *Request) UnmarshalJSON(src []byte) error {
 	tmp := struct {
 		Kind string     `json:"kind"`
 		Rcpt StaticRcpt `json:"rcpt"`
-		Data map[string]string
+		Data map[string]interface{}
 	}{
 		Rcpt: StaticRcpt{},
-		Data: map[string]string{},
+		Data: map[string]interface{}{},
 	}
 	if err := json.Unmarshal(src, &tmp); err != nil {
 		return err

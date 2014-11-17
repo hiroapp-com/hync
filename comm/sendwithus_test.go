@@ -14,7 +14,7 @@ var testRcpt = StaticRcpt{
 
 func TestSWUInvite(t *testing.T) {
 	withHandler(t, func(handler Handler) {
-		err := handler(NewRequest("invite", testRcpt, map[string]string{
+		err := handler(NewRequest("invite", testRcpt, map[string]interface{}{
 			"token":         "test",
 			"note_id":       "nid:test",
 			"inviter_email": "hello@qatfy.at",
@@ -25,7 +25,7 @@ func TestSWUInvite(t *testing.T) {
 
 func TestSWUVerify(t *testing.T) {
 	withHandler(t, func(handler Handler) {
-		err := handler(NewRequest("verify", testRcpt, map[string]string{
+		err := handler(NewRequest("verify", testRcpt, map[string]interface{}{
 			"token": "test",
 		}))
 		assert(t, err == nil, "invite template failed: %s", err)
@@ -34,7 +34,7 @@ func TestSWUVerify(t *testing.T) {
 
 func TestSWUResetPW(t *testing.T) {
 	withHandler(t, func(handler Handler) {
-		err := handler(NewRequest("reset-pw", testRcpt, map[string]string{
+		err := handler(NewRequest("reset-pw", testRcpt, map[string]interface{}{
 			"token": "test",
 		}))
 		assert(t, err == nil, "invite template failed: %s", err)
@@ -49,10 +49,10 @@ func withHandler(t *testing.T, fn func(Handler)) {
 	}
 }
 
-func assert(t *testing.T, cond bool, msg string, args ...interface{}) bool {
-	if !cond {
-		t.Errorf(msg, args...)
-		return false
-	}
-	return true
-}
+//func assert(t *testing.T, cond bool, msg string, args ...interface{}) bool {
+//	if !cond {
+//		t.Errorf(msg, args...)
+//		return false
+//	}
+//	return true
+//}

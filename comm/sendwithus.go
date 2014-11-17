@@ -21,7 +21,7 @@ type SWUTemplateRequest struct {
 		Name    string `json:"name"`
 		Address string `json:"address"`
 	} `json:"recipient"`
-	Data   map[string]string `json:"email_data"`
+	Data   map[string]interface{} `json:"email_data"`
 	Sender struct {
 		ReplyTo string `json:"reply_to"`
 	} `json:"sender"`
@@ -79,7 +79,7 @@ func NewSendwithus() func(Request) error {
 		tpl.Rcpt.Name = r.Rcpt.DisplayName()
 		tpl.Rcpt.Address = email
 		if e, ok := r.Data["inviter_email"]; ok {
-			tpl.Sender.ReplyTo = e
+			tpl.Sender.ReplyTo = e.(string)
 		}
 		data, err := json.Marshal(tpl)
 		if err != nil {

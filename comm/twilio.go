@@ -65,23 +65,33 @@ func NewTwilio() Handler {
 			return nil
 		}
 		log.Println("twilio: received request", req)
+		var inviterName, inviterPhone, inviterEmail string
+		if s, ok := req.Data["inviter_name"].(string); ok {
+			inviterName = s
+		}
+		if s, ok := req.Data["inviter_phone"].(string); ok {
+			inviterPhone = s
+		}
+		if s, ok := req.Data["inviter_email"].(string); ok {
+			inviterEmail = s
+		}
 		var body string
 		switch req.Kind {
 		case "invite":
-			from := firstNonEmpty(req.Data["inviter_name"], req.Data["inviter_phone"], req.Data["inviter_email"], "Someone")
+			from := firstNonEmpty(inviterName, inviterPhone, inviterEmail, "Someone")
 			if len(from) > 25 {
 				from = from[:25]
 			}
-			peek := firstNonEmpty(req.Data["title"], req.Data["peek"], "New Note")
+			peek := firstNonEmpty(req.Data["title"].(string), req.Data["peek"].(string), "New Note")
 			remaining := 160 - len(from) - 32 - 56 // update last number when changin the share-text
 			if len(peek) > remaining {
 				peek = peek[:remaining-3] + "..."
 			}
-			body = fmt.Sprintf("%s shared the note '%s' with you: https://beta.hiroapp.com/#%s", from, peek, req.Data["token"])
+			body = fmt.Sprintf("%s shared the note '%s' with you: https://beta.hiroapp.com/#%s", from, peek, req.Data["token"].(string))
 		case "verify":
-			body = fmt.Sprintf("Please verify your device by visiting https://beta.hiroapp.com/#v:%s", req.Data["token"])
+			body = fmt.Sprintf("Please verify your device by visiting https://beta.hiroapp.com/#v:%s", req.Data["token"].(string))
 		case "reset-pwd":
-			body = fmt.Sprintf("You can now reset your password at https://beta.hiroapp.com/#r:%s", req.Data["token"])
+			body = fmt.Sprintf("You can now reset your password at https://beta.hiroapp.com/#r:%s", req.Data["token"].(string))
 		default:
 		}
 		if body == "" {

@@ -28,31 +28,37 @@ func TestEmptyKey(t *testing.T) {
 
 func TestPing(t *testing.T) {
 	withMandrill(t, func(handler Handler) {
-		err := handler(NewRequest("ping", testRecipient(""), map[string]string{"email": "test@hiroapp.com"}))
+		err := handler(NewRequest("ping", testRecipient(""), map[string]interface{}{"email": "test@hiroapp.com"}))
 		assert(t, err == nil, "ping failed: %s", err)
 	})
 }
 func TestVerify(t *testing.T) {
 	withMandrill(t, func(handler Handler) {
-		err := handler(NewRequest("verify", testRecipient(""), map[string]string{"email": "test@hiroapp.com", "token": "test"}))
+		err := handler(NewRequest("verify", testRecipient(""), map[string]interface{}{"email": "test@hiroapp.com", "token": "test"}))
 		assert(t, err == nil, "verify template failed failed: %s", err)
 	})
 }
 
 func TestInvite(t *testing.T) {
 	withMandrill(t, func(handler Handler) {
-		err := handler(NewRequest("invite", testRecipient(""), map[string]string{
-			"token":   "test",
-			"note_id": "nid:test",
+		err := handler(NewRequest("invite", testRecipient(""), map[string]interface{}{
+			"token":        "test",
+			"nid":          "nid:test",
+			"inviter_name": "Gargamel",
+			"note_title":   "test",
+			"note_peek":    "test",
 		}))
 		assert(t, err == nil, "invite template failed: %s", err)
 	})
 }
 func TestInviteReject(t *testing.T) {
 	withMandrill(t, func(handler Handler) {
-		err := handler(NewRequest("invite", testRecipient("reject@test.mandrillapp.com"), map[string]string{
-			"token":   "test",
-			"note_id": "nid:test",
+		err := handler(NewRequest("invite", testRecipient("reject@test.mandrillapp.com"), map[string]interface{}{
+			"token":        "test",
+			"nid":          "nid:test",
+			"inviter_name": "Gargamel",
+			"note_title":   "test",
+			"note_peek":    "test",
 		}))
 		log.Println("ERROR", err, "JUPJUP")
 		assert(t, err != nil, "invite of reject-email did not fail: %s", err)
