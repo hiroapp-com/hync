@@ -38,9 +38,9 @@ func HandlerGroup(fns ...Handler) Handler {
 type RequestTimeoutError struct{}
 
 type Request struct {
-	Kind string
-	Rcpt
-	Data map[string]interface{}
+	Kind string `json:"kind"`
+	Rcpt `json:"rcpt"`
+	Data map[string]interface{} `json:"data"`
 }
 
 type StaticRcpt struct {
