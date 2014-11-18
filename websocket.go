@@ -19,7 +19,7 @@ var (
 		HandshakeTimeout: 5 * time.Second,
 		CheckOrigin: func(r *http.Request) bool {
 			switch r.Header.Get("Origin") {
-			case "http://localhost:5000", "https://beta.hiroapp.com":
+			case "http://localhost:5000", "https://beta.hiroapp.com", "https://www.hiroapp.com":
 			default:
 				return false
 			}
