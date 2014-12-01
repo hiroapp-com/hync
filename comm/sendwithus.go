@@ -70,6 +70,9 @@ func NewSendwithus() func(Request) error {
 		case "signup-setpwd":
 			// SWU: "Generic Transactional"
 			tpl.EmailID = "tem_Gk92owL3EYH9HUhjLPjtKN"
+		case "notify-inactive":
+			// SWU: "Generic Transactional"
+			tpl.EmailID = "tem_Ft7sxJGtAfwrQNztAnPbzF"
 		case "welcome", "welcome-setpwd":
 			// ignore until these flows are implemented
 			return nil
