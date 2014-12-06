@@ -73,6 +73,9 @@ func NewSendwithus() func(Request) error {
 		case "notify-inactive":
 			// SWU: "Generic Transactional"
 			tpl.EmailID = "tem_Ft7sxJGtAfwrQNztAnPbzF"
+		case "invite-accepted":
+			// SWU: "Invitation Accepted"
+			tpl.EmailID = "tem_DsjvFKzQZFJ9RrxBSd5Hha"
 		case "welcome", "welcome-setpwd":
 			// ignore until these flows are implemented
 			return nil
