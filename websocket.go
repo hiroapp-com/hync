@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/sushimako/diffsync"
+	"github.com/hiroapp-com/diffsync"
 	"github.com/gorilla/websocket"
 )
 

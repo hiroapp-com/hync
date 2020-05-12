@@ -19,8 +19,8 @@ import (
 	"net/http"
 	"runtime/pprof"
 
-	"bitbucket.org/sushimako/diffsync"
-	"bitbucket.org/sushimako/hync/comm"
+	"github.com/hiroapp-com/diffsync"
+	"github.com/hiroapp-com/comm"
 	_ "github.com/lib/pq"
 )
 

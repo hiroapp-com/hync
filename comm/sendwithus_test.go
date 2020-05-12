@@ -3,7 +3,7 @@ package comm_test
 import (
 	"testing"
 
-	. "bitbucket.org/sushimako/hync/comm"
+	. "github.com/hiroapp-com/hync/comm"
 )
 
 var testRcpt = StaticRcpt{
