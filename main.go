@@ -20,7 +20,7 @@ import (
 	"runtime/pprof"
 
 	"github.com/hiroapp-com/diffsync"
-	"github.com/hiroapp-com/comm"
+	"github.com/hiroapp-com/hync/comm"
 	_ "github.com/lib/pq"
 )
 
